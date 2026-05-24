@@ -1,0 +1,6 @@
+.files
+.idea
+*.exe
+config.yaml
+uploads
+fileshare.json
