@@ -24,6 +24,8 @@ import (
 //go:embed web/login.html web/index.html web/js/app.js
 var webContent embed.FS
 
+const Version = "1.0.1"
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
@@ -123,6 +125,12 @@ func runWeb() {
 		color := utils.GetUserColor(name)
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"name":"%s","color":"%s"}`, name, color)
+	})
+
+	// API version
+	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"version":"%s"}`, Version)
 	})
 
 	// Static web files

@@ -20,6 +20,7 @@ function init(){
     else{var lr=localStorage.getItem('lastRoom');if(lr)joinRoom(lr);}
   });
   document.getElementById('upInput').addEventListener('change',function(){upFile(this);});
+  fetch('/api/version').then(function(r){return r.json()}).then(function(d){document.getElementById('ver').textContent='v'+d.version;});
   setBtn('out');
 }
 

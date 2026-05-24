@@ -1,4 +1,4 @@
-name: Build
+name: Build & Release
 
 on:
   push:
@@ -34,3 +34,39 @@ jobs:
         with:
           name: byteShare_${{ matrix.goos }}_${{ matrix.goarch }}
           path: byteShare_${{ matrix.goos }}_${{ matrix.goarch }}*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate tag
+        id: tag
+        run: |
+          VER=$(grep '^const Version' main.go | cut -d'"' -f2)
+          echo "ver=${VER}" >> $GITHUB_OUTPUT
+          echo "tag=v${VER}-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "byteShare v${{ steps.tag.outputs.ver }}"
+          body: |
+            ## byteShare v${{ steps.tag.outputs.ver }}
+
+            ### 包含的平台
+            | 平台 | 架构 | 文件 |
+            |------|------|------|
+            | Linux | x86 (386) | byteShare_linux_386 |
+            | Linux | x64 (amd64) | byteShare_linux_amd64 |
+            | Windows | x86 (386) | byteShare_windows_386.exe |
+            | Windows | x64 (amd64) | byteShare_windows_amd64.exe |
+          files: artifacts/**/*
