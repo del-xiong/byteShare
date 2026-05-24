@@ -1,0 +1,16 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+  mode: "web"
+
+auth:
+  password: "byteshare"
+
+upload:
+  dir: "./uploads"
+  max_size: 500  # MB
+  default_expiry: 3  # days
+  max_expiry: 30  # days
+
+database:
+  path: "./byteshare.json"
