@@ -292,6 +292,7 @@ func (s *UploadService) HandleUploadChunk(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(fmt.Sprintf(`{
 		"ok":true,
+		"done":true,
 		"token":"%s",
 		"name":"%s",
 		"size":%d,

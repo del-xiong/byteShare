@@ -3,31 +3,39 @@
 
 var CHUNK_SIZE=64*1024;
 var ws,me,users={},room='',pwd='';
-var offers={},xfers={},tcnt=0,txtN=0;
+var offers={},xfers={},tcnt=0;
+var apiBase='';
 
 var GRAY='#8E8E93';
 
 function q(n){return new URLSearchParams(window.location.search).get(n)||'';}
 
+function roomFromPath(){
+  var s=location.pathname.replace(/^\//,'').split('/')[0];
+  return s||'index';
+}
 function init(){
   pwd=q('pwd'); if(!pwd){window.location.href='/';return;}
   document.getElementById('myName').textContent='…';
-  fetch('/api/username').then(function(r){return r.json()}).then(function(d){
-    me={id:d.name+'_'+Date.now(),name:d.name,color:'#27C5F5'};
-    document.getElementById('myName').textContent='你: '+d.name;
-    var r=q('room');
-    if(r){localStorage.setItem('lastRoom',r);joinRoom(r);}
-    else{var lr=localStorage.getItem('lastRoom');if(lr)joinRoom(lr);}
+  fetch('/api/config').then(function(r){return r.json()}).then(function(cfg){
+    apiBase=cfg.public_url;
+    fetch(apiBase+'/api/username').then(function(r){return r.json()}).then(function(d){
+      me={id:d.name+'_'+Date.now(),name:d.name,color:'#27C5F5'};
+      document.getElementById('myName').textContent='你: '+d.name;
+      var rn=roomFromPath();
+      localStorage.setItem('lastRoom',rn);joinRoom(rn);
+    });
+    fetch(apiBase+'/api/version').then(function(r){return r.json()}).then(function(d){document.getElementById('ver').textContent='v'+d.version;});
   });
   document.getElementById('upInput').addEventListener('change',function(){upFile(this);});
-  fetch('/api/version').then(function(r){return r.json()}).then(function(d){document.getElementById('ver').textContent='v'+d.version;});
   setBtn('out');
 }
 
 /* ---- WS ---- */
 function wsConn(){
-  var p=location.protocol==='https:'?'wss:':'ws:';
-  ws=new WebSocket(p+'//'+location.host+'/ws?pwd='+encodeURIComponent(pwd));
+  var base=apiBase||(location.protocol+'//'+location.host);
+  var wsBase=base.replace(/^http/,'ws');
+  ws=new WebSocket(wsBase+'/ws?pwd='+encodeURIComponent(pwd));
   ws.onopen=function(){t('已连接');if(room)sendJoin();};
   ws.onclose=function(){t('重连中…','err');setTimeout(wsConn,3000);};
   ws.onmessage=function(e){try{onMsg(JSON.parse(e.data))}catch(_){}};
@@ -62,6 +70,7 @@ function joinRoom(v){
   document.getElementById('roomName').textContent='房间: '+v;
   setBtn('in');
   document.getElementById('userGrid').innerHTML='<div class="empty"><div class="big">◌</div><p>连接中…</p></div>';
+  history.replaceState({},'','/'+encodeURIComponent(v)+'?pwd='+encodeURIComponent(pwd));
   if(!ws||ws.readyState!==WebSocket.OPEN)wsConn();else sendJoin();
 }
 function sendJoin(){send({type:'join',room:room,user:{id:me.id,name:me.name,color:me.color}});}
@@ -196,16 +205,16 @@ function txtDlg(uid,name){
 function sendTxt(uid){var i=document.getElementById('txIn');if(!i)return;var c=i.value.trim();if(!c)return;send({type:'text',to:uid,content:c});t('已发送');}
 function onText(m){
   var from=users[m.from],name=from?from.name:m.from;
-  var el=document.createElement('div');el.className='tmsg';
-  el.innerHTML='<div class="sender">'+esc(name)+'</div><div class="txt">'+esc(m.content)+'</div><div class="tbot"><span class="time">'+new Date().toLocaleTimeString()+'</span><button class="cpy-msg">复制</button></div>';
-  var c=document.getElementById('tmsgs');c.appendChild(el);
-  var cp=el.querySelector('.cpy-msg');
-  cp.onclick=function(){
-    if(navigator.clipboard){navigator.clipboard.writeText(m.content).then(function(){cp.textContent='已复制';setTimeout(function(){cp.textContent='复制'},1500);});}
-    else{var ta=document.createElement('textarea');ta.value=m.content;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);cp.textContent='已复制';setTimeout(function(){cp.textContent='复制'},1500);}
+  var ov=document.createElement('div');ov.className='overlay';
+  ov.innerHTML='<div class="box"><h3>来自 '+esc(name)+'</h3><div style="max-height:280px;overflow-y:auto;margin-bottom:16px;padding:12px;background:var(--surface);border-radius:8px;font-size:13px;line-height:1.5;word-break:break-word;text-align:left">'+esc(m.content)+'</div><div class="btns" style="justify-content:space-between"><button class="secondary">关闭</button><button class="primary">复制</button></div></div>';
+  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+  document.getElementById('modalRoot').appendChild(ov);
+  var btns=ov.querySelectorAll('.btns button');
+  btns[0].onclick=function(){ov.remove();};
+  btns[1].onclick=function(){
+    if(navigator.clipboard){navigator.clipboard.writeText(m.content).then(function(){t('已复制');ov.remove();});}
+    else{var ta=document.createElement('textarea');ta.value=m.content;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);t('已复制');ov.remove();}
   };
-  while(c.children>20)c.removeChild(c.firstChild);
-  if(++txtN>40)setTimeout(function(){if(el.parentNode)el.remove()},60000);
 }
 
 /* ---- Upload ---- */
@@ -229,7 +238,7 @@ function upFile(inp){
         ffd.append('name',file.name);ffd.append('mime',file.type||'application/octet-stream');
         ffd.append('expiry',expDays.toString());
         ffd.append('data',file.slice(s,e),'chunk_'+index);
-        fetch('/api/upload/chunk?pwd='+encodeURIComponent(pwd),{method:'POST',body:ffd}).then(function(r){
+        fetch(apiBase+'/api/upload/chunk?pwd='+encodeURIComponent(pwd),{method:'POST',body:ffd}).then(function(r){
           if(!r.ok)throw new Error('HTTP '+r.status);
           return r.json();
         }).then(function(res){resolve(res);}).catch(reject);
@@ -253,7 +262,7 @@ function upFile(inp){
   };
 }
 function showUploadResult(d){
-  var u=window.location.protocol+'//'+window.location.host+d.url;
+  var u=(apiBase||window.location.protocol+'//'+window.location.host)+d.url;
   modal(
     '<h3>上传完成</h3>'+
     '<div style="text-align:left;margin-bottom:16px">'+

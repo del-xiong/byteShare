@@ -38,7 +38,7 @@ function go(){
   var v=p.value||q('pwd');if(!v){e.style.display='block';return;}
   b.disabled=true;e.style.display='none';l.style.display='block';
   fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'password='+encodeURIComponent(v)})
-    .then(function(r){if(r.ok){var rm=q('room');window.location.href=rm?'/room?pwd='+encodeURIComponent(v)+'&room='+encodeURIComponent(rm):'/room?pwd='+encodeURIComponent(v);}else{e.style.display='block';b.disabled=false;l.style.display='none';}})
+    .then(function(r){if(r.ok){var rm=q('room')||'index';window.location.href='/'+rm+'?pwd='+encodeURIComponent(v);}else{e.style.display='block';b.disabled=false;l.style.display='none';}})
     .catch(function(){e.textContent='连接失败';e.style.display='block';b.disabled=false;l.style.display='none';});
 }
 p.addEventListener('keydown',function(e){if(e.key==='Enter')go()});

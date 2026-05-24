@@ -14,9 +14,10 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
-	Mode string `yaml:"mode"`
+	Host      string `yaml:"host"`
+	Port      int    `yaml:"port"`
+	Mode      string `yaml:"mode"`
+	PublicURL string `yaml:"public_url"`
 }
 
 type AuthConfig struct {

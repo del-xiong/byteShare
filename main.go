@@ -24,7 +24,7 @@ import (
 //go:embed web/login.html web/index.html web/js/app.js
 var webContent embed.FS
 
-const Version = "1.0.1"
+const Version = "1.0.2"
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -133,13 +133,29 @@ func runWeb() {
 		fmt.Fprintf(w, `{"version":"%s"}`, Version)
 	})
 
+	// API config (public URL for frontend)
+	mux.HandleFunc("/api/config", func(w http.ResponseWriter, r *http.Request) {
+		baseURL := config.App.Server.PublicURL
+		if baseURL == "" {
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+			baseURL = fmt.Sprintf("%s://%s", scheme, r.Host)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"public_url":"%s"}`, baseURL)
+	})
+
 	// Static web files
 	webFS, _ := fs.Sub(webContent, "web")
 	fileServer := http.FileServer(http.FS(webFS))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		p := r.URL.Path
-		if p == "/" || p == "/login" {
+		p := strings.TrimPrefix(r.URL.Path, "/")
+
+		// Login page
+		if p == "" || p == "login" {
 			data, err := webContent.ReadFile("web/login.html")
 			if err != nil {
 				http.NotFound(w, r)
@@ -150,7 +166,8 @@ func runWeb() {
 			return
 		}
 
-		if p == "/room" || strings.HasPrefix(p, "/room/") {
+		// Room route: single path segment, no extension
+		if !strings.Contains(p, "/") && !strings.Contains(p, ".") {
 			if !service.CheckAuth(r) {
 				http.Redirect(w, r, "/", http.StatusFound)
 				return
@@ -166,8 +183,7 @@ func runWeb() {
 		}
 
 		// Try serving embedded file
-		cleanPath := strings.TrimPrefix(p, "/")
-		if _, err := webFS.Open(cleanPath); err == nil {
+		if _, err := webFS.Open(p); err == nil {
 			fileServer.ServeHTTP(w, r)
 			return
 		}

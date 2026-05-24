@@ -3,4 +3,5 @@
 *.exe
 config.yaml
 uploads
+byteShare
 fileshare.json
