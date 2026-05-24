@@ -38,8 +38,27 @@ func NewHub() *Hub {
 }
 
 func (h *Hub) JoinRoom(client *Client, roomName string) {
-	// Lock hub + room atomically to prevent races with LeaveRoom/cleanup
 	h.mu.Lock()
+
+	// If the client is switching from a different room, remove them first so
+	// they don't linger in the old room's client list.
+	var oldRecipients []*Client
+	if client.Room != "" && client.Room != roomName {
+		if oldRoom, ok := h.rooms[client.Room]; ok {
+			oldRoom.mu.Lock()
+			delete(oldRoom.clients, client)
+			if len(oldRoom.clients) == 0 {
+				delete(h.rooms, oldRoom.name)
+			} else {
+				for c := range oldRoom.clients {
+					oldRecipients = append(oldRecipients, c)
+				}
+			}
+			oldRoom.mu.Unlock()
+		}
+	}
+
+	// Join (or create) the target room.
 	room, ok := h.rooms[roomName]
 	if !ok {
 		room = newRoom(roomName)
@@ -48,28 +67,12 @@ func (h *Hub) JoinRoom(client *Client, roomName string) {
 	room.mu.Lock()
 	client.Room = roomName
 	room.clients[client] = true
-	room.mu.Unlock()
-	h.mu.Unlock()
 
-	// Notify others (no hub lock needed, Send channel is non-blocking)
-	joinMsg, _ := sjson.Set(`{"type":"user-joined"}`, "user", map[string]string{
-		"id":    client.User.ID,
-		"name":  client.User.Name,
-		"color": client.User.Color,
-	})
-
-	room.mu.RLock()
-	for c := range room.clients {
-		if c != client {
-			select {
-			case c.Send <- []byte(joinMsg):
-			default:
-			}
-		}
-	}
-
+	// Capture the snapshot and recipient list while holding both locks.
 	users := make([]map[string]interface{}, 0, len(room.clients))
+	recipients := make([]*Client, 0, len(room.clients))
 	for c := range room.clients {
+		recipients = append(recipients, c)
 		isMe := c == client
 		users = append(users, map[string]interface{}{
 			"id":    c.User.ID,
@@ -78,13 +81,35 @@ func (h *Hub) JoinRoom(client *Client, roomName string) {
 			"is_me": isMe,
 		})
 	}
-	room.mu.RUnlock()
+	room.mu.Unlock()
+	h.mu.Unlock()
 
-	usersJSON, _ := sjson.Set(`{"type":"room-users"}`, "users", users)
-	select {
-	case client.Send <- []byte(usersJSON):
-	default:
+	// Notify old room that this client left.
+	if oldRecipients != nil {
+		leaveMsg, _ := sjson.Set(`{"type":"user-left"}`, "user_id", client.User.ID)
+		for _, c := range oldRecipients {
+			c.Send <- []byte(leaveMsg)
+		}
 	}
+
+	// Notify new room (best-effort, informational).
+	joinMsg, _ := sjson.Set(`{"type":"user-joined"}`, "user", map[string]string{
+		"id":    client.User.ID,
+		"name":  client.User.Name,
+		"color": client.User.Color,
+	})
+	for _, c := range recipients {
+		if c != client {
+			select {
+			case c.Send <- []byte(joinMsg):
+			default:
+			}
+		}
+	}
+
+	// Send user list to the joining client (blocking send).
+	usersJSON, _ := sjson.Set(`{"type":"room-users"}`, "users", users)
+	client.Send <- []byte(usersJSON)
 
 	log.Printf("[Hub] Client %s joined room %s", client.User.Name, roomName)
 }
@@ -120,10 +145,10 @@ func (h *Hub) LeaveRoom(client *Client) {
 		leaveMsg, _ := sjson.Set(`{"type":"user-left"}`, "user_id", client.User.ID)
 		room.mu.RLock()
 		for c := range room.clients {
-			select {
-			case c.Send <- []byte(leaveMsg):
-			default:
-			}
+			// Blocking send — user-left is critical; must not be dropped.
+			// The 256-entry buffer means this only blocks if the recipient's
+			// WritePump is genuinely stuck, which is rare and transient.
+			c.Send <- []byte(leaveMsg)
 		}
 		room.mu.RUnlock()
 	}
