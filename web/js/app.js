@@ -84,9 +84,14 @@ function leaveRoom(){
 function setBtn(s){
   var fc=document.getElementById('footContent');
   if(s==='in'){
-    fc.innerHTML='<div class="btns-row"><button class="big-btn" id="upBtn">上传文件</button><button class="switch-btn" id="switchBtn">切换房间</button></div>';
+    fc.innerHTML='<div class="btns-row">'+
+      '<button class="big-btn" id="upBtn">上传文件</button>'+
+      '<button class="switch-btn" id="switchBtn">切换房间</button>'+
+      '<button class="qr-btn" id="qrBtn" title="房间二维码" aria-label="房间二维码"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm13-2h-2v3h-2v2h2v2h2v-2h2v-2h-2v-3zm-2 7h2v2h-2v-2zm4-4h2v2h-2v-2z"/></svg></button>'+
+    '</div>';
     document.getElementById('upBtn').onclick=function(){document.getElementById('upInput').click();};
     document.getElementById('switchBtn').onclick=function(){showJoinModal();};
+    document.getElementById('qrBtn').onclick=showRoomQR;
   }else{
     fc.innerHTML='<button class="big-btn" id="joinBtn">加入房间</button>';
     document.getElementById('joinBtn').onclick=function(){showJoinModal();};
@@ -273,6 +278,8 @@ function showUploadResult(d){
         '<input id="dlUrl" type="text" value="'+esc(u)+'" readonly style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text);outline:none">'+
         '<button id="cpBtn" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">复制</button>'+
       '</div>'+
+      '<div style="text-align:center;margin-top:14px">'+qrImg(u)+'</div>'+
+      '<div style="font-size:11px;color:var(--text2);text-align:center;margin-top:6px">扫码下载</div>'+
       '<div style="font-size:11px;color:var(--text2);margin-top:8px">过期: '+new Date(d.expires_at).toLocaleDateString()+'</div>'+
     '</div>',
     [{l:'关闭',c:'secondary',fn:closeM}],
@@ -283,6 +290,30 @@ function showUploadResult(d){
         else{i.select();document.execCommand('copy');b.textContent='已复制!';setTimeout(function(){b.textContent='复制'},2000);}
       };
     }
+  );
+}
+
+/* ---- QR ---- */
+function shareBase(){return apiBase||(location.protocol+'//'+location.host);}
+function qrImg(txt){
+  try{
+    var qr=qrcode(0,'M');
+    qr.addData(txt);
+    qr.make();
+    var n=qr.getModuleCount(),cell=Math.max(2,Math.round(160/n));
+    var src=qr.createDataURL(cell,2),px=(n+4)*cell;
+    return '<img src="'+src+'" width="'+px+'" height="'+px+'" style="display:block;margin:0 auto;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px" alt="二维码">';
+  }catch(e){return '';}
+}
+function roomQRUrl(){return shareBase()+'/'+encodeURIComponent(room)+'?pwd='+encodeURIComponent(pwd);}
+function showRoomQR(){
+  var u=roomQRUrl();
+  modal(
+    '<h3>房间二维码</h3>'+
+    '<p style="font-size:13px;color:var(--text2);text-align:center;margin-bottom:14px">打开手机扫码加入房间</p>'+
+    '<div style="text-align:center;margin-bottom:14px">'+qrImg(u)+'</div>'+
+    '<div style="font-size:11px;color:var(--text2);word-break:break-all;text-align:center;line-height:1.5">'+esc(u)+'</div>',
+    [{l:'关闭',c:'secondary',fn:closeM}]
   );
 }
 

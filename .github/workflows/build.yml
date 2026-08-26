@@ -54,6 +54,9 @@ jobs:
           echo "ver=${VER}" >> $GITHUB_OUTPUT
           echo "tag=v${VER}-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
+      - name: Prepare config.yaml
+        run: cp config.yaml.example config.yaml
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -69,4 +72,9 @@ jobs:
             | Linux | x64 (amd64) | byteShare_linux_amd64 |
             | Windows | x86 (386) | byteShare_windows_386.exe |
             | Windows | x64 (amd64) | byteShare_windows_amd64.exe |
-          files: artifacts/**/*
+
+            ### 附带
+            - `config.yaml` — 示例配置文件（由 `config.yaml.example` 重命名而来）
+          files: |
+            artifacts/**/*
+            config.yaml

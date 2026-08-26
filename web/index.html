@@ -50,9 +50,12 @@ input,textarea,button{font-family:inherit}
 .foot .big-btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
 .foot .big-btn:hover{opacity:.88}
 .foot #joinBtn{width:280px}
-.foot .btns-row{display:flex;gap:8px;width:100%;max-width:300px}
+.foot .btns-row{display:flex;gap:8px;width:100%;max-width:340px}
 .foot .btns-row .big-btn{flex:1;width:auto}
 .foot .switch-btn{background:var(--red);color:#fff;border:none;border-radius:10px;padding:12px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.foot .qr-btn{background:var(--accent);color:#fff;border:none;border-radius:10px;width:42px;height:42px;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:opacity .15s;padding:0}
+.foot .qr-btn:hover{opacity:.88}
+.foot .qr-btn svg{width:20px;height:20px;display:block}
 
 /* Modal */
 .overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.25);z-index:900;display:flex;align-items:center;justify-content:center;animation:fi .2s}
@@ -140,6 +143,7 @@ input,textarea,button{font-family:inherit}
 <div class="progs" id="progs"></div>
 <div id="modalRoot"></div>
 
+<script src="/js/qrcode.min.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

@@ -21,10 +21,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-//go:embed web/login.html web/index.html web/js/app.js
+//go:embed web/login.html web/index.html web/js/app.js web/js/qrcode.min.js
 var webContent embed.FS
 
-const Version = "1.0.3"
+const Version = "1.0.4"
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
