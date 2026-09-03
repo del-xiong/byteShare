@@ -106,6 +106,8 @@ func (c *Client) handleMessage(data []byte) {
 	switch msgType {
 	case "join":
 		c.handleJoin(result)
+	case "user-rename":
+		c.handleRename(result)
 	case "file-offer":
 		c.forwardMessage(data)
 	case "file-accept":
@@ -138,6 +140,47 @@ func (c *Client) handleJoin(result gjson.Result) {
 	}
 
 	c.Hub.JoinRoom(c, roomName)
+}
+
+func (c *Client) handleRename(result gjson.Result) {
+	newName := result.Get("name").String()
+	if newName == "" {
+		return
+	}
+
+	c.User.Name = newName
+
+	// Broadcast the rename to everyone else in the room so they
+	// can update their card without re-sending a full user list.
+	msg, _ := sjson.Set(`{"type":"user-rename"}`, "user_id", c.User.ID)
+	msg, _ = sjson.Set(msg, "name", newName)
+	c.broadcastToRoom([]byte(msg))
+}
+
+func (c *Client) broadcastToRoom(data []byte) {
+	if c.Room == "" {
+		return
+	}
+
+	c.Hub.mu.RLock()
+	room, ok := c.Hub.rooms[c.Room]
+	c.Hub.mu.RUnlock()
+	if !ok {
+		return
+	}
+
+	room.mu.RLock()
+	defer room.mu.RUnlock()
+
+	for client := range room.clients {
+		if client != c {
+			select {
+			case client.Send <- data:
+			default:
+				log.Printf("[Client] Dropping message for %s: buffer full", client.User.ID)
+			}
+		}
+	}
 }
 
 func (c *Client) forwardMessage(data []byte) {

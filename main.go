@@ -24,7 +24,7 @@ import (
 //go:embed web/login.html web/index.html web/js/app.js web/js/qrcode.min.js
 var webContent embed.FS
 
-const Version = "1.0.4"
+const Version = "1.0.5"
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },

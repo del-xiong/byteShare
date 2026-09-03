@@ -19,16 +19,19 @@ function init(){
   document.getElementById('myName').textContent='…';
   fetch('/api/config').then(function(r){return r.json()}).then(function(cfg){
     apiBase=cfg.public_url;
-    fetch(apiBase+'/api/username').then(function(r){return r.json()}).then(function(d){
-      me={id:d.name+'_'+Date.now(),name:d.name,color:'#27C5F5'};
-      document.getElementById('myName').textContent='你: '+d.name;
-      var rn=roomFromPath();
-      localStorage.setItem('lastRoom',rn);joinRoom(rn);
-    });
+    var cached=localStorage.getItem('bsName');
+    if(cached&&cached.trim())startup(cached.trim());
+    else fetch(apiBase+'/api/username').then(function(r){return r.json()}).then(function(d){startup(d.name);});
     fetch(apiBase+'/api/version').then(function(r){return r.json()}).then(function(d){document.getElementById('ver').textContent='v'+d.version;});
   });
   document.getElementById('upInput').addEventListener('change',function(){upFile(this);});
   setBtn('out');
+}
+function startup(name){
+  me={id:name+'_'+Date.now(),name:name,color:'#27C5F5'};
+  document.getElementById('myName').textContent='你: '+name;
+  var rn=roomFromPath();
+  localStorage.setItem('lastRoom',rn);joinRoom(rn);
 }
 
 /* ---- WS ---- */
@@ -47,6 +50,7 @@ function onMsg(m){
     case'room-users':users={};m.users.forEach(function(u){if(!u.is_me)u.color=GRAY;users[u.id]=u});draw();break;
     case'user-joined':m.user.color=GRAY;users[m.user.id]=m.user;draw();t(m.user.name+' 加入了');break;
     case'user-left':delete users[m.user_id];draw();t('用户离开');break;
+    case'user-rename':onRename(m);break;
     case'file-offer':onOffer(m);break;
     case'file-accept':onAccept(m);break;
     case'file-reject':onReject(m);break;
@@ -106,13 +110,16 @@ function draw(){
   ids.sort(function(a,b){return a===me.id?-1:b===me.id?1:0});
   ids.forEach(function(id){
     var u=users[id],el=document.createElement('div');
-    el.className='card'+(u.is_me?' me':' click');
+    el.className='card'+(u.is_me?' me click':' click');
     el.dataset.uid=id;
     el.innerHTML=
       '<div class="av" style="background:'+u.color+'"><div class="ring"></div>'+u.name.charAt(0).toUpperCase()+'</div>'+
       '<div class="nm">'+esc(u.name)+'</div>'+
       (u.is_me?'<div class="tag">我</div>':'<div class="off"></div>');
-    if(!u.is_me){
+    if(u.is_me){
+      el.title='点击修改名称';
+      el.addEventListener('click',function(){renameDlg();});
+    }else{
       el.addEventListener('click',function(){sendFile(id);});
       el.addEventListener('contextmenu',function(e){e.preventDefault();txtDlg(id,u.name);});
       var t=null;
@@ -122,6 +129,32 @@ function draw(){
     }
     g.appendChild(el);
   });
+}
+
+/* ---- Rename ---- */
+function renameDlg(){
+  modal('<h3>修改名称</h3><p style="color:var(--text2);font-size:13px">输入新的节点名称</p><input class="big-input" id="nmInput" maxlength="20" autofocus>',[{l:'取消',c:'secondary',fn:closeM},{l:'保存',c:'primary',fn:function(){saveName();closeM();}}]);
+  var i=document.getElementById('nmInput');
+  if(i){i.value=me.name;i.focus();i.select();i.onkeydown=function(e){if(e.key==='Enter'){saveName();closeM();}}}
+}
+function saveName(){
+  var i=document.getElementById('nmInput');if(!i)return;
+  var n=i.value.trim();if(!n){t('名称不能为空','err');return;}
+  if(n===me.name)return;
+  me.name=n;
+  localStorage.setItem('bsName',n);
+  document.getElementById('myName').textContent='你: '+n;
+  if(users[me.id])users[me.id].name=n;
+  send({type:'user-rename',name:n});
+  draw();
+  t('已修改名称');
+}
+function onRename(m){
+  var u=users[m.user_id];
+  if(!u)return;
+  u.name=m.name;
+  draw();
+  t('用户更名为: '+m.name);
 }
 
 /* ---- File send ---- */
